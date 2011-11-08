@@ -2,6 +2,7 @@ package plugins.adufour.thresholder;
 
 import icy.image.IcyBufferedImage;
 import icy.sequence.Sequence;
+import icy.type.DataType;
 import icy.type.collection.array.Array1DUtil;
 import plugins.adufour.ezplug.EzPlug;
 import plugins.adufour.ezplug.EzVar;
@@ -129,8 +130,7 @@ public class Thresholder extends EzPlug
 	{
 		Sequence output = inPlace ? input : new Sequence();
 		
-		int dataType = input.getDataType();
-		boolean signed = input.isSignedDataType();
+		DataType dataType = input.getDataType_();
 		
 		double thr0 = thresholds[0];
 		int maxThresholdIndex = thresholds.length - 1;
@@ -160,7 +160,7 @@ public class Thresholder extends EzPlug
 				
 				withTheNextPixel: for (int i = 0; i < length; i++)
 				{
-					double val = Array1DUtil.getValue(_in2D, i, dataType, signed);
+					double val = Array1DUtil.getValue(_in2D, i, dataType);
 					
 					// background
 					if (val < thr0)
