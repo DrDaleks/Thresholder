@@ -74,7 +74,7 @@ public class Thresholder extends EzPlug
 		super.addEzComponent(thresholds);
 		method.addVisibilityTriggerTo(thresholds, ThresholdMethod.MANUAL);
 
-		super.addComponent(timeDependent);
+		super.addEzComponent(timeDependent);
 
 		super.setTimeDisplay(true);
 	}
