@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="MacRoman" standalone="no"?>
 <jardesc>
-    <jar path="Thresholder/thresholder.jar"/>
+    <jar path="Thresholder/Thresholder.jar"/>
     <options buildIfNeeded="true" compress="true" descriptionLocation="/Thresholder/thresholder.jardesc" exportErrors="false" exportWarnings="false" includeDirectoryEntries="false" overwrite="true" saveDescription="true" storeRefactorings="false" useSourceFolders="false"/>
     <storedRefactorings deprecationInfo="true" structuralOnly="false"/>
     <selectedProjects/>
