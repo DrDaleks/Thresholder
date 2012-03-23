@@ -95,7 +95,7 @@ public class Thresholder extends EzPlug
 		{
 			case MANUAL:
 			{
-				Double[] thrs = thresholds.getValue();
+				Double[] thrs = thresholds.getValue(true);
 				
 				if (thrs.length == 0) throw new EzException("No threshold indicated", true);
 				
