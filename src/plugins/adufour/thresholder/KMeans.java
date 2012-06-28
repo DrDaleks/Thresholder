@@ -62,8 +62,8 @@ public class KMeans
 	{
 		double[] thresholds = new double[nbClasses - 1];
 
-		input.updateComponentsBounds(true, true);
-		double[] minmax = input.getComponentAbsBounds(c);
+		input.updateChannelsBounds(true);
+		double[] minmax = input.getChannelTypeBounds(c);
 		double min = minmax[0], max = minmax[1];
 		double fact = (binPrecision - 1) / (max - min);
 		double[] histo = new double[binPrecision];
@@ -112,8 +112,8 @@ public class KMeans
 	{
 		double[] thresholds = new double[nbClasses - 1];
 
-		input.updateComponentsBounds(true, true);
-		double[] minmax = input.getComponentAbsBounds(c);
+		input.updateChannelsBounds(true);
+		double[] minmax = input.getChannelTypeBounds(c);
 		double min = minmax[0], max = minmax[1];
 		double fact = (binPrecision - 1) / (max - min);
 		double[] histo = new double[binPrecision];

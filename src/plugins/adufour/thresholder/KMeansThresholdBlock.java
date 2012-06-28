@@ -7,8 +7,8 @@ import plugins.adufour.blocks.lang.Block;
 import plugins.adufour.blocks.util.BlockInfo;
 import plugins.adufour.blocks.util.VarList;
 import plugins.adufour.vars.gui.model.IntegerRangeModel;
-import plugins.adufour.vars.lang.VarDoubleArray;
 import plugins.adufour.vars.lang.VarInteger;
+import plugins.adufour.vars.lang.VarDoubleArrayNative;
 import plugins.adufour.vars.lang.VarSequence;
 import plugins.adufour.vars.util.VarException;
 
@@ -18,7 +18,7 @@ public class KMeansThresholdBlock extends Plugin implements Block, BlockInfo, Pl
     VarInteger     channel    = new VarInteger("Channel", 0);
     VarInteger     nbClasses  = new VarInteger("Classes", 2);
     
-    VarDoubleArray thresholds = new VarDoubleArray("thresholds", new Double[] {});
+    VarDoubleArrayNative thresholds = new VarDoubleArrayNative("thresholds", new double[] {});
     
     @Override
     public void run()
@@ -36,11 +36,7 @@ public class KMeansThresholdBlock extends Plugin implements Block, BlockInfo, Pl
         
         double[][] thrs = KMeans.computeKMeansThresholds(seq, nC);
         
-        Double[] result = new Double[nC - 1];
-        for (int i = 0; i < result.length; i++)
-            result[i] = thrs[c][i];
-        
-        thresholds.setValue(result);
+        thresholds.setValue(thrs[c]);
     }
     
     @Override
