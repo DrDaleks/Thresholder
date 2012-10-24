@@ -145,6 +145,9 @@ public class Thresholder extends EzPlug implements Block
      */
     public static Sequence threshold(Sequence input, int c, double[][] thresholdsT, boolean inPlace)
     {
+        if (input == null) throw new IllegalArgumentException("Thresholder: no input sequence given");
+        if (c >= input.getSizeC()) throw new IllegalArgumentException("Thresholder: input sequence has no channel #" + c);
+
         Sequence output = inPlace ? input : new Sequence();
         
         DataType dataType = input.getDataType_();
@@ -158,6 +161,9 @@ public class Thresholder extends EzPlug implements Block
         for (int t = 0; t < input.getSizeT(); t++)
         {
             double[] thresholds = thresholdsT[t];
+            
+            if (thresholds == null || thresholds.length == 0) throw new IllegalArgumentException("Thresholder: no thresholds given");
+            
             double thr0 = thresholds[0];
             int maxThresholdIndex = thresholds.length - 1;
             if (thresholds.length > maxClass) maxClass = thresholds.length;
