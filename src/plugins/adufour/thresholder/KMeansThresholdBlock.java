@@ -4,19 +4,18 @@ import icy.plugin.abstract_.Plugin;
 import icy.plugin.interface_.PluginBundled;
 import icy.sequence.Sequence;
 import plugins.adufour.blocks.lang.Block;
-import plugins.adufour.blocks.util.BlockInfo;
 import plugins.adufour.blocks.util.VarList;
 import plugins.adufour.vars.gui.model.IntegerRangeModel;
-import plugins.adufour.vars.lang.VarInteger;
 import plugins.adufour.vars.lang.VarDoubleArrayNative;
+import plugins.adufour.vars.lang.VarInteger;
 import plugins.adufour.vars.lang.VarSequence;
 import plugins.adufour.vars.util.VarException;
 
-public class KMeansThresholdBlock extends Plugin implements Block, BlockInfo, PluginBundled
+public class KMeansThresholdBlock extends Plugin implements Block, PluginBundled
 {
-    VarSequence    input      = new VarSequence("Input", null);
-    VarInteger     channel    = new VarInteger("Channel", 0);
-    VarInteger     nbClasses  = new VarInteger("Classes", 2);
+    VarSequence          input      = new VarSequence("Input", null);
+    VarInteger           channel    = new VarInteger("Channel", 0);
+    VarInteger           nbClasses  = new VarInteger("Classes", 2);
     
     VarDoubleArrayNative thresholds = new VarDoubleArrayNative("thresholds", new double[] {});
     
@@ -56,18 +55,6 @@ public class KMeansThresholdBlock extends Plugin implements Block, BlockInfo, Pl
         outputMap.add(thresholds);
     }
     
-    @Override
-    public String getName()
-    {
-        return "Intensity KMeans";
-    }
-    
-    @Override
-    public String getDescription()
-    {
-        return "Computes the thresholds on the intensity histograms using the KMeans algorithm";
-    }
-
     @Override
     public String getMainPluginClassName()
     {
