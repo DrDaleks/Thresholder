@@ -461,7 +461,8 @@ public class Thresholder extends EzPlug implements Block
     @Override
     public void declareOutput(VarList outputMap)
     {
-        outputMap.add(outLabels);
+        outputMap.add("output", outLabels);
+        outputMap.add(outROI);
     }
     
 }
