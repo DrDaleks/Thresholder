@@ -10,6 +10,7 @@ import icy.type.collection.array.Array1DUtil;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import plugins.adufour.blocks.lang.Block;
 import plugins.adufour.blocks.util.VarList;
@@ -43,6 +44,7 @@ public class Thresholder extends EzPlug implements Block
     private EzVarEnum<ThresholdMethod> method        = new EzVarEnum<ThresholdMethod>("Method", ThresholdMethod.values(), ThresholdMethod.MANUAL);
     private EzVarInteger               nbClasses     = new EzVarInteger("K-means classes", 2, KMeans.DEFAULT_KMEANS_BINS, 1);
     private EzVarDoubleArrayNative     thresholds    = new EzVarDoubleArrayNative("Manual thresholds", new double[][] { new double[] { 100, 200 } }, true);
+    private EzVarBoolean               pct           = new EzVarBoolean("Treat as percentiles", false);
     private EzVarBoolean               timeDependent = new EzVarBoolean("Process frames independently", false);
     private EzVarEnum<ThresholdOutput> outputType    = new EzVarEnum<ThresholdOutput>("Output as", ThresholdOutput.values(), ThresholdOutput.SEQUENCE);
     private EzVarBoolean               inPlace       = new EzVarBoolean("Overwrite input", false);
@@ -94,6 +96,9 @@ public class Thresholder extends EzPlug implements Block
         method.addVisibilityTriggerTo(thresholds, ThresholdMethod.MANUAL);
         super.addEzComponent(thresholds);
         
+        method.addVisibilityTriggerTo(pct, ThresholdMethod.MANUAL);
+        super.addEzComponent(pct);
+        
         method.addVisibilityTriggerTo(timeDependent, ThresholdMethod.K_MEANS);
         super.addEzComponent(timeDependent);
         
@@ -124,8 +129,47 @@ public class Thresholder extends EzPlug implements Block
                 
                 if (thrs.length == 0) throw new VarException("No threshold(s) indicated");
                 
-                for (int i = 0; i < _thrs.length; i++)
-                    _thrs[i] = thrs;
+                if (pct.getValue())
+                {
+                    for (double thr : thrs)
+                        if (thr < 0.0 || thr > 100.0) throw new VarException("Thresholder: percentile(s) must be between 0 and 100");
+                    
+                    if (!timeDependent.getValue())
+                    {
+                        // preserve the original array
+                        thrs = Arrays.copyOf(thrs, thrs.length);
+                        
+                        // compute one global set of threshold percentile for the sequence
+                        double min = inSeq.getChannelMin(c);
+                        double max = inSeq.getChannelMax(c);
+                        
+                        for (int i = 0; i < thrs.length; i++)
+                            thrs[i] = min + thrs[i] * (max - min) / 100;
+                    }
+                }
+                
+                for (int t = 0; t < inSeq.getSizeT(); t++)
+                {
+                    _thrs[t] = Arrays.copyOf(thrs, thrs.length);
+                    
+                    if (pct.getValue() && timeDependent.getValue())
+                    {
+                        // interpret thresholds as intensity percentiles
+                        
+                        double min = inSeq.getImage(t, 0).getChannelMin(c);
+                        double max = inSeq.getImage(t, 0).getChannelMax(c);
+                        
+                        for (int z = 1; z < inSeq.getSizeZ(); z++)
+                        {
+                            double[] sliceBounds = inSeq.getImage(t, z).getChannelBounds(c);
+                            if (sliceBounds[0] < min) min = sliceBounds[0];
+                            if (sliceBounds[1] > max) max = sliceBounds[1];
+                        }
+                        
+                        for (int i = 0; i < _thrs[t].length; i++)
+                            _thrs[t][i] = min + _thrs[t][i] * (max - min) / 100;
+                    }
+                }
                 
                 break;
             }
@@ -347,7 +391,7 @@ public class Thresholder extends EzPlug implements Block
         int sizeT = input.getSizeT();
         int sizeX = input.getSizeX();
         int sizeY = input.getSizeY();
-//        int sizeC = input.getSizeC();
+        // int sizeC = input.getSizeC();
         int sliceSize = sizeX * sizeY;
         
         ArrayList<ROI> output = new ArrayList<ROI>(sizeT);
@@ -418,13 +462,13 @@ public class Thresholder extends EzPlug implements Block
                     
                     if (area3D == null) area3D = new ROI3DArea();
                     
-                    area2D = new ROI2DArea(masks[0][thr]);
+                    area2D = new ROI2DArea(masks[z][thr]);
                     area2D.setName("[T=" + t + "] Threshold: " + thresholds[thr]);
                     // this line doesn't work in Icy 1.3.6.0
                     // if (sizeC > 1) area2D.setC(c);
                     area2D.setT(t);
                     
-                    if (depth > 1) area3D.addROI2D(z, area2D);
+                    if (depth > 1) area3D.addROI2D(z, area2D, false);
                 }
                 
                 if (depth == 1)
@@ -456,6 +500,7 @@ public class Thresholder extends EzPlug implements Block
         inputMap.add(in.getVariable());
         inputMap.add(channel.getVariable());
         inputMap.add(thresholds.getVariable());
+        inputMap.add(pct.getVariable());
     }
     
     @Override

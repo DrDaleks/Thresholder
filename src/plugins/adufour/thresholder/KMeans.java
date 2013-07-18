@@ -112,9 +112,17 @@ public class KMeans
 	{
 		double[] thresholds = new double[nbClasses - 1];
 
-		input.updateChannelsBounds(true);
-		double[] minmax = input.getChannelTypeBounds(c);
-		double min = minmax[0], max = minmax[1];
+		// compute min/max on the current stack
+        double min = input.getImage(t, 0).getChannelMin(c);
+        double max = input.getImage(t, 0).getChannelMax(c);
+        
+        for (int z = 1; z < input.getSizeZ(); z++)
+        {
+            double[] sliceBounds = input.getImage(t, z).getChannelBounds(c);
+            if (sliceBounds[0] < min) min = sliceBounds[0];
+            if (sliceBounds[1] > max) max = sliceBounds[1];
+        }
+		
 		double fact = (binPrecision - 1) / (max - min);
 		double[] histo = new double[binPrecision];
 
