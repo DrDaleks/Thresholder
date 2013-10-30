@@ -5,7 +5,5 @@
 	<classpathentry kind="var" path="ICY_HOME/icy.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/EzPlug"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/Protocols"/>
-	<classpathentry kind="var" path="ICY_HOME/plugins/adufour/roi/ROI3DAreaPlugin.jar"/>
-	<classpathentry kind="var" path="ICY_HOME/plugins/adufour/roi/ROI3DStackPlugin.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

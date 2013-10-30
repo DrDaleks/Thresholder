@@ -3,7 +3,6 @@ package plugins.adufour.thresholder;
 import icy.image.IcyBufferedImage;
 import icy.roi.BooleanMask2D;
 import icy.roi.ROI;
-import icy.roi.ROI2DArea;
 import icy.sequence.Sequence;
 import icy.type.DataType;
 import icy.type.collection.array.Array1DUtil;
@@ -22,10 +21,11 @@ import plugins.adufour.ezplug.EzVarEnum;
 import plugins.adufour.ezplug.EzVarInteger;
 import plugins.adufour.ezplug.EzVarListener;
 import plugins.adufour.ezplug.EzVarSequence;
-import plugins.adufour.roi.ROI3DArea;
 import plugins.adufour.vars.lang.VarROIArray;
 import plugins.adufour.vars.lang.VarSequence;
 import plugins.adufour.vars.util.VarException;
+import plugins.kernel.roi.roi2d.ROI2DArea;
+import plugins.kernel.roi.roi3d.ROI3DArea;
 
 public class Thresholder extends EzPlug implements Block
 {
@@ -468,7 +468,7 @@ public class Thresholder extends EzPlug implements Block
                     // if (sizeC > 1) area2D.setC(c);
                     area2D.setT(t);
                     
-                    if (depth > 1) area3D.addROI2D(z, area2D, false);
+                    if (depth > 1) area3D.setSlice(z, area2D, false);
                 }
                 
                 if (depth == 1)
