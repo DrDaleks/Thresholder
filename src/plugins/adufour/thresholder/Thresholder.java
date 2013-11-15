@@ -303,7 +303,7 @@ public class Thresholder extends EzPlug implements Block
                 
                 withTheNextPixel: for (int i = 0; i < length; i++)
                 {
-                    double val = Array1DUtil.getValue(_in2D, i, dataType);
+                    double val = _in2D == null ? 0 : Array1DUtil.getValue(_in2D, i, dataType);
                     
                     // background
                     if (val < thr0)
