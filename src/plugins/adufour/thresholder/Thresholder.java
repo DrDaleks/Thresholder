@@ -467,13 +467,17 @@ public class Thresholder extends EzPlug implements Block
                     // this line doesn't work in Icy 1.3.6.0
                     // if (sizeC > 1) area2D.setC(c);
                     area2D.setT(t);
+                    area2D.setZ(z);
                     
                     if (depth > 1) area3D.setSlice(z, area2D, false);
                 }
                 
                 if (depth == 1)
                 {
-                    if (area2D != null) output.add(area2D);
+                    if (area2D != null)
+                    {
+                        output.add(area2D);
+                    }
                 }
                 else
                 {
