@@ -3,6 +3,9 @@ package plugins.adufour.thresholder;
 import icy.image.IcyBufferedImage;
 import icy.roi.BooleanMask2D;
 import icy.roi.ROI;
+import icy.roi.ROI2D;
+import icy.roi.ROI3D;
+import icy.roi.ROI4D;
 import icy.sequence.Sequence;
 import icy.type.DataType;
 import icy.type.collection.array.Array1DUtil;
@@ -10,17 +13,19 @@ import icy.type.collection.array.Array1DUtil;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import plugins.adufour.blocks.lang.Block;
 import plugins.adufour.blocks.util.VarList;
 import plugins.adufour.ezplug.EzPlug;
-import plugins.adufour.ezplug.EzVar;
 import plugins.adufour.ezplug.EzVarBoolean;
+import plugins.adufour.ezplug.EzVarChannel;
 import plugins.adufour.ezplug.EzVarDoubleArrayNative;
 import plugins.adufour.ezplug.EzVarEnum;
 import plugins.adufour.ezplug.EzVarInteger;
-import plugins.adufour.ezplug.EzVarListener;
 import plugins.adufour.ezplug.EzVarSequence;
+import plugins.adufour.roi.LabelExtractor;
+import plugins.adufour.roi.LabelExtractor.ExtractionType;
 import plugins.adufour.vars.lang.VarROIArray;
 import plugins.adufour.vars.lang.VarSequence;
 import plugins.adufour.vars.util.VarException;
@@ -36,11 +41,24 @@ public class Thresholder extends EzPlug implements Block
     
     private enum ThresholdOutput
     {
-        SEQUENCE, ROI
+        SEQUENCE("Labeled sequence"), ROI("Single ROI"), MULTI_ROI("Multiple ROI");
+        
+        final String description;
+        
+        private ThresholdOutput(String description)
+        {
+            this.description = description;
+        }
+        
+        @Override
+        public String toString()
+        {
+            return description;
+        }
     }
     
     private EzVarSequence              in            = new EzVarSequence("Input");
-    private EzVarInteger               channel       = new EzVarInteger("Channel", 0, 0, 65535, 1);
+    private EzVarChannel               channel       = new EzVarChannel("channel", in.getVariable(), false);
     private EzVarEnum<ThresholdMethod> method        = new EzVarEnum<ThresholdMethod>("Method", ThresholdMethod.values(), ThresholdMethod.MANUAL);
     private EzVarInteger               nbClasses     = new EzVarInteger("K-means classes", 2, KMeans.DEFAULT_KMEANS_BINS, 1);
     private EzVarDoubleArrayNative     thresholds    = new EzVarDoubleArrayNative("Manual thresholds", new double[][] { new double[] { 100, 200 } }, true);
@@ -59,34 +77,6 @@ public class Thresholder extends EzPlug implements Block
     {
         super.addEzComponent(in);
         super.addEzComponent(channel);
-        
-        in.addVarChangeListener(new EzVarListener<Sequence>()
-        {
-            @Override
-            public void variableChanged(EzVar<Sequence> source, Sequence newValue)
-            {
-                if (newValue == null)
-                {
-                    channel.setVisible(false);
-                }
-                else
-                {
-                    int sizeC = newValue.getSizeC();
-                    if (sizeC == 1)
-                    {
-                        channel.setVisible(false);
-                        channel.setValue(0);
-                    }
-                    else
-                    {
-                        channel.setVisible(true);
-                        channel.setMaxValue(sizeC - 1);
-                    }
-                    
-                    timeDependent.setVisible(newValue.getSizeT() > 1);
-                }
-            }
-        });
         
         super.addEzComponent(method);
         
@@ -115,7 +105,10 @@ public class Thresholder extends EzPlug implements Block
         
         int c = channel.getValue();
         
-        if (c >= inSeq.getSizeC()) throw new VarException("Thresholder: invalid channel (" + c + ")");
+        if (c >= inSeq.getSizeC())
+        {
+            throw new VarException(channel.getVariable(), "\"" + inSeq.getName() + "\" has no channel \"" + c + "\"");
+        }
         
         ThresholdMethod algorithm = method.getValue();
         
@@ -123,63 +116,61 @@ public class Thresholder extends EzPlug implements Block
         
         switch (method.getValue())
         {
-            case MANUAL:
+        case MANUAL: {
+            double[] thrs = thresholds.getValue(true);
+            
+            if (thrs.length == 0) throw new VarException(thresholds.getVariable(), "No threshold(s) indicated");
+            
+            if (pct.getValue())
             {
-                double[] thrs = thresholds.getValue(true);
+                for (double thr : thrs)
+                    if (thr < 0.0 || thr > 100.0) throw new VarException(pct.getVariable(), "Percentile(s) must be between 0 and 100");
                 
-                if (thrs.length == 0) throw new VarException("No threshold(s) indicated");
-                
-                if (pct.getValue())
+                if (!timeDependent.getValue())
                 {
-                    for (double thr : thrs)
-                        if (thr < 0.0 || thr > 100.0) throw new VarException("Thresholder: percentile(s) must be between 0 and 100");
+                    // preserve the original array
+                    thrs = Arrays.copyOf(thrs, thrs.length);
                     
-                    if (!timeDependent.getValue())
-                    {
-                        // preserve the original array
-                        thrs = Arrays.copyOf(thrs, thrs.length);
-                        
-                        // compute one global set of threshold percentile for the sequence
-                        double min = inSeq.getChannelMin(c);
-                        double max = inSeq.getChannelMax(c);
-                        
-                        for (int i = 0; i < thrs.length; i++)
-                            thrs[i] = min + thrs[i] * (max - min) / 100;
-                    }
-                }
-                
-                for (int t = 0; t < inSeq.getSizeT(); t++)
-                {
-                    _thrs[t] = Arrays.copyOf(thrs, thrs.length);
+                    // compute one global set of threshold percentile for the sequence
+                    double min = inSeq.getChannelMin(c);
+                    double max = inSeq.getChannelMax(c);
                     
-                    if (pct.getValue() && timeDependent.getValue())
-                    {
-                        // interpret thresholds as intensity percentiles
-                        
-                        double min = inSeq.getImage(t, 0).getChannelMin(c);
-                        double max = inSeq.getImage(t, 0).getChannelMax(c);
-                        
-                        for (int z = 1; z < inSeq.getSizeZ(); z++)
-                        {
-                            double[] sliceBounds = inSeq.getImage(t, z).getChannelBounds(c);
-                            if (sliceBounds[0] < min) min = sliceBounds[0];
-                            if (sliceBounds[1] > max) max = sliceBounds[1];
-                        }
-                        
-                        for (int i = 0; i < _thrs[t].length; i++)
-                            _thrs[t][i] = min + _thrs[t][i] * (max - min) / 100;
-                    }
+                    for (int i = 0; i < thrs.length; i++)
+                        thrs[i] = min + thrs[i] * (max - min) / 100;
                 }
-                
-                break;
             }
-            case K_MEANS:
+            
+            for (int t = 0; t < inSeq.getSizeT(); t++)
             {
-                _thrs = KMeans.computeKMeansThresholds(inSeq, c, timeDependent.getValue(), nbClasses.getValue().shortValue(), KMeans.DEFAULT_KMEANS_BINS);
-                break;
+                _thrs[t] = Arrays.copyOf(thrs, thrs.length);
+                
+                if (pct.getValue() && timeDependent.getValue())
+                {
+                    // interpret thresholds as intensity percentiles
+                    
+                    double min = inSeq.getImage(t, 0).getChannelMin(c);
+                    double max = inSeq.getImage(t, 0).getChannelMax(c);
+                    
+                    for (int z = 1; z < inSeq.getSizeZ(); z++)
+                    {
+                        double[] sliceBounds = inSeq.getImage(t, z).getChannelBounds(c);
+                        if (sliceBounds[0] < min) min = sliceBounds[0];
+                        if (sliceBounds[1] > max) max = sliceBounds[1];
+                    }
+                    
+                    for (int i = 0; i < _thrs[t].length; i++)
+                        _thrs[t][i] = min + _thrs[t][i] * (max - min) / 100;
+                }
             }
-            default:
-                throw new UnsupportedOperationException(algorithm + " method");
+            
+            break;
+        }
+        case K_MEANS: {
+            _thrs = KMeans.computeKMeansThresholds(inSeq, c, timeDependent.getValue(), nbClasses.getValue().shortValue(), KMeans.DEFAULT_KMEANS_BINS);
+            break;
+        }
+        default:
+            throw new UnsupportedOperationException(algorithm + " method");
         }
         
         if (blockMode)
@@ -200,23 +191,48 @@ public class Thresholder extends EzPlug implements Block
         {
             switch (outputType.getValue())
             {
-                case SEQUENCE:
-                    Sequence sOUT = threshold(inSeq, c, _thrs, inPlace.getValue());
-                    sOUT.setName(inSeq.getName() + "_thresholded");
-                    if (inPlace.getValue())
-                    {
-                        sOUT.dataChanged();
-                    }
-                    else
-                    {
-                        addSequence(sOUT);
-                    }
+            case SEQUENCE: {
+                Sequence sOUT = threshold(inSeq, c, _thrs, inPlace.getValue());
+                
+                String newName = inSeq.getName() + " thresholded";
+                
+                if (!timeDependent.getValue())
+                {
+                    newName += " at value" + (_thrs[0].length == 1 ? " " : "s ");
+                    newName += _thrs[0][0];
+                    for (int i = 1; i < _thrs[0].length; i++)
+                        newName += ";" + _thrs[0][i];
+                }
+                
+                sOUT.setName(newName);
+                
+                if (inPlace.getValue())
+                {
+                    sOUT.dataChanged();
+                }
+                else
+                {
+                    addSequence(sOUT);
+                }
                 break;
-                case ROI:
-                    ROI[] rois = threshold(inSeq, c, _thrs);
-                    for (ROI roi : rois)
-                        inSeq.addROI(roi);
+            }
+            case ROI: {
+                ROI[] rois = threshold(inSeq, c, _thrs);
+                for (ROI roi : rois)
+                    inSeq.addROI(roi);
                 break;
+            }
+            case MULTI_ROI: {
+                Sequence sOUT = threshold(inSeq, c, _thrs, inPlace.getValue());
+                List<ROI> rois = LabelExtractor.extractLabels(sOUT, ExtractionType.ALL_LABELS_VS_BACKGROUND, 0.0);
+                for (ROI roi : rois)
+                {
+                    if (roi instanceof ROI4D) ((ROI4D) roi).setC(c);
+                    else if (roi instanceof ROI3D) ((ROI3D) roi).setC(c);
+                    else if (roi instanceof ROI2D) ((ROI2D) roi).setC(c);
+                    inSeq.addROI(roi);
+                }
+            }
             }
         }
     }
@@ -301,7 +317,8 @@ public class Thresholder extends EzPlug implements Block
                 
                 Object _out2D = outSlice.getDataXY(inPlace ? c : 0);
                 
-                withTheNextPixel: for (int i = 0; i < length; i++)
+                withTheNextPixel:
+                for (int i = 0; i < length; i++)
                 {
                     double val = _in2D == null ? 0 : Array1DUtil.getValue(_in2D, i, dataType);
                     
@@ -424,7 +441,8 @@ public class Thresholder extends EzPlug implements Block
                 
                 Object _in2D = input.getDataXY(t, z, c);
                 
-                withTheNextPixel: for (int i = 0; i < sliceSize; i++)
+                withTheNextPixel:
+                for (int i = 0; i < sliceSize; i++)
                 {
                     double val = Array1DUtil.getValue(_in2D, i, dataType);
                     
@@ -463,9 +481,8 @@ public class Thresholder extends EzPlug implements Block
                     if (area3D == null) area3D = new ROI3DArea();
                     
                     area2D = new ROI2DArea(masks[z][thr]);
-                    area2D.setName("[T=" + t + "] Threshold: " + thresholds[thr]);
-                    // this line doesn't work in Icy 1.3.6.0
-                    // if (sizeC > 1) area2D.setC(c);
+                    area2D.setName("Threshold: " + thresholds[thr]);
+                    area2D.setC(c);
                     area2D.setT(t);
                     area2D.setZ(z);
                     
@@ -481,10 +498,9 @@ public class Thresholder extends EzPlug implements Block
                 }
                 else
                 {
-                    // this line doesn't work in Icy 1.3.6.0
-                    // if (sizeC > 1) area3D.setC(c);
+                    area3D.setC(c);
                     area3D.setT(t);
-                    area3D.setName("[T=" + t + "] threshold: " + thresholds[thr]);
+                    area3D.setName("Threshold: " + thresholds[thr]);
                     output.add(area3D);
                 }
             }
@@ -501,17 +517,18 @@ public class Thresholder extends EzPlug implements Block
     public void declareInput(VarList inputMap)
     {
         blockMode = true;
-        inputMap.add(in.getVariable());
-        inputMap.add(channel.getVariable());
-        inputMap.add(thresholds.getVariable());
-        inputMap.add(pct.getVariable());
+        in.getVariable().setOptional(true);
+        inputMap.add("Input", in.getVariable());
+        inputMap.add("channel", channel.getVariable());
+        inputMap.add("Manual thresholds", thresholds.getVariable());
+        inputMap.add("Treat as percentiles", pct.getVariable());
     }
     
     @Override
     public void declareOutput(VarList outputMap)
     {
         outputMap.add("output", outLabels);
-        outputMap.add(outROI);
+        outputMap.add("ROI", outROI);
     }
     
 }
