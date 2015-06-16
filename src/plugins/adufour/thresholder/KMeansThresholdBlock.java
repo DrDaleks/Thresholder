@@ -24,12 +24,12 @@ public class KMeansThresholdBlock extends Plugin implements Block, PluginBundled
     {
         Sequence seq = input.getValue();
         
-        if (seq == null) throw new VarException("Thresholder: no sequence selected");
+        if (seq == null) throw new VarException(input, "Thresholder: no sequence selected");
         
         int c = channel.getValue();
         int sizeC = seq.getSizeC();
         
-        if (c >= sizeC) throw new VarException("Thresholder: invalid channel (" + c + "³" + sizeC + ")");
+        if (c >= sizeC) throw new VarException(channel, "Thresholder: channel " + c + " does not exist");
         
         int nC = nbClasses.getValue();
         
@@ -44,15 +44,15 @@ public class KMeansThresholdBlock extends Plugin implements Block, PluginBundled
         nbClasses.setDefaultEditorModel(new IntegerRangeModel(2, 2, 65535, 1));
         channel.setDefaultEditorModel(new IntegerRangeModel(0, 0, 65535, 1));
         
-        inputMap.add(input);
-        inputMap.add(channel);
-        inputMap.add(nbClasses);
+        inputMap.add("Input", input);
+        inputMap.add("Channel", channel);
+        inputMap.add("Classes", nbClasses);
     }
     
     @Override
     public void declareOutput(VarList outputMap)
     {
-        outputMap.add(thresholds);
+        outputMap.add("thresholds", thresholds);
     }
     
     @Override
