@@ -1,22 +1,19 @@
 package plugins.adufour.thresholder;
 
-import icy.image.IcyBufferedImage;
-import icy.roi.BooleanMask2D;
-import icy.roi.ROI;
-import icy.roi.ROI2D;
-import icy.roi.ROI3D;
-import icy.roi.ROI4D;
-import icy.sequence.Sequence;
-import icy.type.DataType;
-import icy.type.collection.array.Array1DUtil;
-
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import icy.image.IcyBufferedImage;
+import icy.roi.BooleanMask2D;
+import icy.roi.ROI;
+import icy.sequence.Sequence;
+import icy.type.DataType;
+import icy.type.collection.array.Array1DUtil;
 import plugins.adufour.blocks.lang.Block;
 import plugins.adufour.blocks.util.VarList;
+import plugins.adufour.ezplug.EzGroup;
 import plugins.adufour.ezplug.EzPlug;
 import plugins.adufour.ezplug.EzVarBoolean;
 import plugins.adufour.ezplug.EzVarChannel;
@@ -65,12 +62,16 @@ public class Thresholder extends EzPlug implements Block
     private EzVarBoolean               pct           = new EzVarBoolean("Treat as percentiles", false);
     private EzVarBoolean               timeDependent = new EzVarBoolean("Process frames independently", false);
     private EzVarEnum<ThresholdOutput> outputType    = new EzVarEnum<ThresholdOutput>("Output as", ThresholdOutput.values(), ThresholdOutput.SEQUENCE);
-    private EzVarBoolean               inPlace       = new EzVarBoolean("Overwrite input", false);
     
-    private VarSequence                outLabels     = new VarSequence("Binary output", null);
-    private VarROIArray                outROI        = new VarROIArray("ROI");
+    private EzVarBoolean filterBySize = new EzVarBoolean("Filter by size", false);
+    private EzVarInteger minSize      = new EzVarInteger("Min size (px)", 100, 1, 200000000, 1);
+    private EzVarInteger maxSize      = new EzVarInteger("Max size (px)", 10000, 1, 200000000, 1);
+    private EzVarBoolean inPlace      = new EzVarBoolean("Overwrite input", false);
     
-    private boolean                    blockMode     = false;
+    private VarSequence outLabels = new VarSequence("Binary output", null);
+    private VarROIArray outROI    = new VarROIArray("ROI");
+    
+    private boolean blockMode = false;
     
     @Override
     public void initialize()
@@ -93,6 +94,13 @@ public class Thresholder extends EzPlug implements Block
         super.addEzComponent(timeDependent);
         
         super.addEzComponent(outputType);
+        
+        super.addEzComponent(filterBySize);
+        outputType.addVisibilityTriggerTo(filterBySize, ThresholdOutput.MULTI_ROI);
+        
+        EzGroup sizeFilterGroup = new EzGroup("Size filter", minSize, maxSize);
+        super.addEzComponent(sizeFilterGroup);
+        filterBySize.addVisibilityTriggerTo(sizeFilterGroup, true);
         
         outputType.addVisibilityTriggerTo(inPlace, ThresholdOutput.SEQUENCE);
         super.addEzComponent(inPlace);
@@ -125,7 +133,7 @@ public class Thresholder extends EzPlug implements Block
             {
                 for (double thr : thrs)
                     if (thr < 0.0 || thr > 100.0) throw new VarException(pct.getVariable(), "Percentile(s) must be between 0 and 100");
-                
+                    
                 if (!timeDependent.getValue())
                 {
                     // preserve the original array
@@ -217,20 +225,39 @@ public class Thresholder extends EzPlug implements Block
                 break;
             }
             case ROI: {
+                inSeq.removeAllROI();
+                
                 ROI[] rois = threshold(inSeq, c, _thrs);
+                
                 for (ROI roi : rois)
-                    inSeq.addROI(roi);
+                {
+                    // size check?
+                    double size = roi.getNumberOfPoints();
+                    if (!filterBySize.getValue() || (size >= minSize.getValue() && size <= maxSize.getValue()))
+                    {
+                        inSeq.addROI(roi);
+                    }
+                }
+                
                 break;
             }
             case MULTI_ROI: {
+                inSeq.removeAllROI();
+                
                 Sequence sOUT = threshold(inSeq, c, _thrs, inPlace.getValue());
                 List<ROI> rois = LabelExtractor.extractLabels(sOUT, ExtractionType.ALL_LABELS_VS_BACKGROUND, 0.0);
                 for (ROI roi : rois)
                 {
-                    if (roi instanceof ROI4D) ((ROI4D) roi).setC(c);
-                    else if (roi instanceof ROI3D) ((ROI3D) roi).setC(c);
-                    else if (roi instanceof ROI2D) ((ROI2D) roi).setC(c);
-                    inSeq.addROI(roi);
+                    // if (roi instanceof ROI4D) ((ROI4D) roi).setC(c);
+                    // else if (roi instanceof ROI3D) ((ROI3D) roi).setC(c);
+                    // else if (roi instanceof ROI2D) ((ROI2D) roi).setC(c);
+                    
+                    // size check?
+                    double size = roi.getNumberOfPoints();
+                    if (!filterBySize.getValue() || (size >= minSize.getValue() && size <= maxSize.getValue()))
+                    {
+                        inSeq.addROI(roi);
+                    }
                 }
             }
             }
@@ -258,7 +285,7 @@ public class Thresholder extends EzPlug implements Block
         double[][] thresholdsT = new double[input.getSizeT()][];
         for (int t = 0; t < thresholdsT.length; t++)
             thresholdsT[t] = thresholds;
-        
+            
         return threshold(input, c, thresholdsT, inPlace);
     }
     
@@ -348,7 +375,7 @@ public class Thresholder extends EzPlug implements Block
                             Array1DUtil.setValue(_out2D, i, dataType, thr + 1);
                             continue withTheNextPixel;
                         }
-                    
+                        
                     // last possible case: class 1
                     Array1DUtil.setValue(_out2D, i, dataType, 1);
                 }
@@ -384,7 +411,7 @@ public class Thresholder extends EzPlug implements Block
         double[][] thresholdsT = new double[input.getSizeT()][];
         for (int t = 0; t < thresholdsT.length; t++)
             thresholdsT[t] = thresholds;
-        
+            
         return threshold(input, c, thresholdsT);
     }
     
@@ -436,7 +463,7 @@ public class Thresholder extends EzPlug implements Block
             {
                 for (int thr = 0; thr < thresholds.length; thr++)
                     masks[z][thr] = new BooleanMask2D(new Rectangle(sizeX, sizeY), new boolean[sliceSize]);
-                
+                    
                 BooleanMask2D[] masks2D = masks[z];
                 
                 Object _in2D = input.getDataXY(t, z, c);
@@ -482,9 +509,9 @@ public class Thresholder extends EzPlug implements Block
                     
                     area2D = new ROI2DArea(masks[z][thr]);
                     area2D.setName("Threshold: " + thresholds[thr]);
-                    area2D.setC(c);
+                    // area2D.setC(c);
                     area2D.setT(t);
-                    area2D.setZ(z);
+                    // area2D.setZ(z);
                     
                     if (depth > 1) area3D.setSlice(z, area2D, false);
                 }
@@ -498,7 +525,7 @@ public class Thresholder extends EzPlug implements Block
                 }
                 else
                 {
-                    area3D.setC(c);
+                    // area3D.setC(c);
                     area3D.setT(t);
                     area3D.setName("Threshold: " + thresholds[thr]);
                     output.add(area3D);
