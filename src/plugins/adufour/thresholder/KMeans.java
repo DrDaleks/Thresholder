@@ -75,7 +75,7 @@ public class KMeans
 			for (int t = 0; t < input.getSizeT(); t++)
 				for (int z = 0; z < input.getSizeZ(); z++)
 				{
-					Array1DUtil.arrayToDoubleArray(input.getDataXY(t, z, c), sliceXY, false);
+					Array1DUtil.arrayToDoubleArray(input.getDataXY(t, z, c), sliceXY, input.isSignedDataType());
 					for (double d : sliceXY)
 						histo[(int) ((d - min) * fact)]++;
 				}
@@ -132,7 +132,7 @@ public class KMeans
 
 			for (int z = 0; z < input.getSizeZ(); z++)
 			{
-				Array1DUtil.arrayToDoubleArray(input.getDataXY(t, z, c), sliceXY, false);
+				Array1DUtil.arrayToDoubleArray(input.getDataXY(t, z, c), sliceXY, input.isSignedDataType());
 				for (double d : sliceXY)
 					histo[(int) ((d - min) * fact)]++;
 			}
