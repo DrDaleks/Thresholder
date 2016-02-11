@@ -505,30 +505,35 @@ public class Thresholder extends EzPlug implements Block
                 {
                     if (!isValidSlice[z]) continue;
                     
-                    if (area3D == null) area3D = new ROI3DArea();
-                    
                     area2D = new ROI2DArea(masks[z][thr]);
-                    area2D.setName("Threshold: " + thresholds[thr]);
-                    // area2D.setC(c);
-                    area2D.setT(t);
-                    // area2D.setZ(z);
                     
-                    if (depth > 1) area3D.setSlice(z, area2D, false);
-                }
-                
-                if (depth == 1)
-                {
-                    if (area2D != null)
+                    if (depth > 1)
                     {
-                        output.add(area2D);
+                        if (area3D == null)
+                        {
+                            area3D = new ROI3DArea();
+                            area3D.setName("Threshold: " + thresholds[thr]);
+                            area3D.setT(t);
+                            // area3D.setC(c);
+                        }
+                        area3D.setSlice(z, area2D, false);
+                    }
+                    else
+                    {
+                        area2D.setName("Threshold: " + thresholds[thr]);
+                        area2D.setT(t);
+                        // area2D.setC(c);
+                        // area2D.setZ(z);
                     }
                 }
-                else
+                
+                if (area3D != null)
                 {
-                    // area3D.setC(c);
-                    area3D.setT(t);
-                    area3D.setName("Threshold: " + thresholds[thr]);
                     output.add(area3D);
+                }
+                else if (area2D != null)
+                {
+                    output.add(area2D);
                 }
             }
         }
